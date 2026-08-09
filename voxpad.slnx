@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Voxpad.Core/Voxpad.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Voxpad.Core.Tests/Voxpad.Core.Tests.csproj" />
+  </Folder>
+</Solution>
