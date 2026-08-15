@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Voxpad.Core\Voxpad.Core.csproj" />
+    <ProjectReference Include="..\..\src\Voxpad.Desktop\Voxpad.Desktop.csproj" />
   </ItemGroup>
 
   <ItemGroup>
