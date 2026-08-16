@@ -37,8 +37,8 @@ Pipelines must remain modular so users can run transcription-only flows or full 
 
 - `ITranscriber` → source transcript generation with timestamps.
 - `ITranscriptAiService` → cleanup/summarize/title operations (existing optional stage).
-- `ITranslationService` *(planned)* → translated transcript variants + language metadata.
-- `IVoiceGenerationService` *(planned)* → synthesized narration from transcript text.
+- `ITranslationService` → translated transcript variants + language metadata.
+- `IVoiceGenerationService` → synthesized narration from transcript text.
 - `IModelStore` → model download/verify/select for STT and stage-specific providers.
 - `IExporter` → transcript/subtitle/artifact exports.
 
