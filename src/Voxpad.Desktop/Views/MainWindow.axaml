@@ -2,105 +2,224 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Voxpad.Desktop.ViewModels"
         x:Class="Voxpad.Desktop.Views.MainWindow"
-        Width="980"
-        Height="680"
-        MinWidth="760"
-        MinHeight="520"
-        Title="voxpad — Model Manager">
+        Width="1120"
+        Height="760"
+        MinWidth="820"
+        MinHeight="580"
+        Title="voxpad — Pipeline Studio">
   <Design.DataContext>
     <vm:MainWindowViewModel />
   </Design.DataContext>
 
-  <DockPanel Margin="16">
-    <StackPanel DockPanel.Dock="Top" Spacing="8">
-      <TextBlock FontSize="22"
-                 FontWeight="SemiBold"
-                 Text="Models" />
-      <TextBlock TextWrapping="Wrap"
-                 Text="Download, select, and remove local whisper.cpp models. The first run recommends downloading base for balanced speed and quality." />
+  <TabControl Margin="16">
+    <TabItem Header="Post-processing">
+      <Grid Margin="0,12,0,0"
+            RowDefinitions="Auto,Auto,*,Auto">
+        <StackPanel Grid.Row="0" Spacing="6">
+          <TextBlock FontSize="22"
+                     FontWeight="SemiBold"
+                     Text="Cleanup and translation workspace" />
+          <TextBlock TextWrapping="Wrap"
+                     Text="Paste or select a transcript, run optional local-AI stages, and compare non-destructive variants before promoting one." />
+        </StackPanel>
 
-      <Border Background="#1E3A8A22"
-              BorderBrush="#1E3A8A"
-              BorderThickness="1"
-              CornerRadius="8"
-              Padding="10"
-              IsVisible="{Binding ModelManager.HasFirstRunGuidance}">
-        <TextBlock TextWrapping="Wrap"
-                   Text="{Binding ModelManager.FirstRunGuidance}" />
-      </Border>
+        <Grid Grid.Row="1"
+              Margin="0,14,0,12"
+              ColumnDefinitions="Auto,220,Auto,*">
+          <Button Grid.Column="0"
+                  Margin="0,0,8,0"
+                  Content="Run cleanup"
+                  IsEnabled="{Binding PostProcessing.IsNotBusy}"
+                  Command="{Binding PostProcessing.CleanupCommand}" />
+          <TextBox Grid.Column="1"
+                   Margin="0,0,8,0"
+                   Watermark="Target languages: es, fr"
+                   Text="{Binding PostProcessing.TargetLanguages}" />
+          <Button Grid.Column="2"
+                  Margin="0,0,8,0"
+                  Content="Run translation"
+                  IsEnabled="{Binding PostProcessing.IsNotBusy}"
+                  Command="{Binding PostProcessing.TranslationCommand}" />
+          <StackPanel Grid.Column="3"
+                      HorizontalAlignment="Right"
+                      Orientation="Horizontal"
+                      Spacing="8">
+            <TextBlock VerticalAlignment="Center"
+                       IsVisible="{Binding PostProcessing.IsBusy}"
+                       Text="Stage running…" />
+            <Button Content="Retry last stage"
+                    IsEnabled="{Binding PostProcessing.IsNotBusy}"
+                    Command="{Binding PostProcessing.RetryCommand}" />
+            <Button Content="Promote selected"
+                    IsEnabled="{Binding PostProcessing.IsNotBusy}"
+                    Command="{Binding PostProcessing.PromoteCommand}" />
+            <Button Content="Restore source"
+                    IsEnabled="{Binding PostProcessing.IsNotBusy}"
+                    Command="{Binding PostProcessing.RevertCommand}" />
+          </StackPanel>
+        </Grid>
 
-      <TextBlock Foreground="#B91C1C"
-                 TextWrapping="Wrap"
-                 IsVisible="{Binding ModelManager.HasStatusMessage}"
-                 Text="{Binding ModelManager.StatusMessage}" />
+        <Grid Grid.Row="2"
+              ColumnDefinitions="*,16,*">
+          <Grid Grid.Column="0" RowDefinitions="Auto,*">
+            <TextBlock Grid.Row="0"
+                       Margin="0,0,0,6"
+                       FontWeight="SemiBold"
+                       Text="Source transcript" />
+            <TextBox Grid.Row="1"
+                     AcceptsReturn="True"
+                     TextWrapping="Wrap"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     Watermark="Paste transcript text here…"
+                     Text="{Binding PostProcessing.SourceText}" />
+          </Grid>
 
-      <StackPanel Orientation="Horizontal" Spacing="8">
-        <Button Content="Refresh"
-                Command="{Binding ModelManager.RefreshCommand}" />
-        <TextBlock VerticalAlignment="Center"
-                   IsVisible="{Binding ModelManager.IsRefreshing}"
-                   Text="Refreshing…" />
-      </StackPanel>
-    </StackPanel>
-
-    <ScrollViewer Margin="0,16,0,0"
-                  VerticalScrollBarVisibility="Auto">
-      <ItemsControl ItemsSource="{Binding ModelManager.Models}">
-        <ItemsControl.ItemTemplate>
-          <DataTemplate>
-            <Border BorderBrush="#D1D5DB"
-                    BorderThickness="1"
-                    CornerRadius="8"
-                    Padding="12"
-                    Margin="0,0,0,10">
-              <StackPanel Spacing="8">
-                <Grid ColumnDefinitions="3*,Auto,Auto,2*">
-                  <TextBlock Grid.Column="0"
-                             FontWeight="SemiBold"
-                             Text="{Binding DisplayName}" />
-                  <TextBlock Grid.Column="1"
-                             Text="{Binding Language}" />
-                  <TextBlock Grid.Column="2"
-                             Text="{Binding SizeLabel}" />
-                  <TextBlock Grid.Column="3"
-                             HorizontalAlignment="Right"
-                             Text="{Binding StatusText}" />
-                </Grid>
-
-                <Grid ColumnDefinitions="3*,Auto"
-                      IsVisible="{Binding IsBusy}">
-                  <ProgressBar Grid.Column="0"
-                               Minimum="0"
-                               Maximum="1"
-                               Value="{Binding DownloadProgress}" />
-                  <TextBlock Grid.Column="1"
-                             VerticalAlignment="Center"
-                             Text="{Binding DownloadPercentLabel}" />
-                </Grid>
-
-                <WrapPanel ItemWidth="120"
-                           Orientation="Horizontal">
-                  <Button Margin="0,0,8,0"
-                          Content="Download"
-                          IsEnabled="{Binding CanDownload}"
-                          Command="{Binding DownloadCommand}" />
-                  <Button Margin="0,0,8,0"
-                          Content="Cancel"
-                          IsEnabled="{Binding CanCancel}"
-                          Command="{Binding CancelCommand}" />
-                  <Button Margin="0,0,8,0"
-                          Content="Select"
-                          IsEnabled="{Binding CanSelect}"
-                          Command="{Binding SelectCommand}" />
-                  <Button Content="Delete"
-                          IsEnabled="{Binding CanDelete}"
-                          Command="{Binding DeleteCommand}" />
-                </WrapPanel>
-              </StackPanel>
+          <Grid Grid.Column="2" RowDefinitions="Auto,Auto,*">
+            <Grid Grid.Row="0"
+                  Margin="0,0,0,6"
+                  ColumnDefinitions="Auto,*">
+              <TextBlock Grid.Column="0"
+                         Margin="0,0,10,0"
+                         VerticalAlignment="Center"
+                         FontWeight="SemiBold"
+                         Text="Generated variant" />
+              <ComboBox Grid.Column="1"
+                        HorizontalAlignment="Stretch"
+                        ItemsSource="{Binding PostProcessing.Variants}"
+                        SelectedItem="{Binding PostProcessing.SelectedVariant}">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate>
+                    <TextBlock Text="{Binding DisplayName}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+            </Grid>
+            <Border Grid.Row="1"
+                    Margin="0,0,0,6"
+                    Padding="8"
+                    Background="#0F3B82F6"
+                    CornerRadius="6">
+              <TextBlock TextWrapping="Wrap"
+                         Text="{Binding PostProcessing.SelectedProvenance}" />
             </Border>
-          </DataTemplate>
-        </ItemsControl.ItemTemplate>
-      </ItemsControl>
-    </ScrollViewer>
-  </DockPanel>
+            <TextBox Grid.Row="2"
+                     AcceptsReturn="True"
+                     IsReadOnly="True"
+                     TextWrapping="Wrap"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     Watermark="Cleanup and translation outputs appear here."
+                     Text="{Binding PostProcessing.SelectedOutputText}" />
+          </Grid>
+        </Grid>
+
+        <Border Grid.Row="3"
+                Margin="0,12,0,0"
+                Padding="10"
+                Background="#22B91C1C"
+                BorderBrush="#B91C1C"
+                BorderThickness="1"
+                CornerRadius="6"
+                IsVisible="{Binding PostProcessing.HasError}">
+          <TextBlock Foreground="#B91C1C"
+                     TextWrapping="Wrap"
+                     Text="{Binding PostProcessing.ErrorMessage}" />
+        </Border>
+      </Grid>
+    </TabItem>
+
+    <TabItem Header="Models">
+      <DockPanel Margin="0,12,0,0">
+        <StackPanel DockPanel.Dock="Top" Spacing="8">
+          <TextBlock FontSize="22"
+                     FontWeight="SemiBold"
+                     Text="Models" />
+          <TextBlock TextWrapping="Wrap"
+                     Text="Download, select, and remove local whisper.cpp models. The first run recommends downloading base for balanced speed and quality." />
+
+          <Border Background="#1E3A8A22"
+                  BorderBrush="#1E3A8A"
+                  BorderThickness="1"
+                  CornerRadius="8"
+                  Padding="10"
+                  IsVisible="{Binding ModelManager.HasFirstRunGuidance}">
+            <TextBlock TextWrapping="Wrap"
+                       Text="{Binding ModelManager.FirstRunGuidance}" />
+          </Border>
+
+          <TextBlock Foreground="#B91C1C"
+                     TextWrapping="Wrap"
+                     IsVisible="{Binding ModelManager.HasStatusMessage}"
+                     Text="{Binding ModelManager.StatusMessage}" />
+
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Content="Refresh"
+                    Command="{Binding ModelManager.RefreshCommand}" />
+            <TextBlock VerticalAlignment="Center"
+                       IsVisible="{Binding ModelManager.IsRefreshing}"
+                       Text="Refreshing…" />
+          </StackPanel>
+        </StackPanel>
+
+        <ScrollViewer Margin="0,16,0,0"
+                      VerticalScrollBarVisibility="Auto">
+          <ItemsControl ItemsSource="{Binding ModelManager.Models}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Border BorderBrush="#D1D5DB"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="12"
+                        Margin="0,0,0,10">
+                  <StackPanel Spacing="8">
+                    <Grid ColumnDefinitions="3*,Auto,Auto,2*">
+                      <TextBlock Grid.Column="0"
+                                 FontWeight="SemiBold"
+                                 Text="{Binding DisplayName}" />
+                      <TextBlock Grid.Column="1"
+                                 Text="{Binding Language}" />
+                      <TextBlock Grid.Column="2"
+                                 Text="{Binding SizeLabel}" />
+                      <TextBlock Grid.Column="3"
+                                 HorizontalAlignment="Right"
+                                 Text="{Binding StatusText}" />
+                    </Grid>
+
+                    <Grid ColumnDefinitions="3*,Auto"
+                          IsVisible="{Binding IsBusy}">
+                      <ProgressBar Grid.Column="0"
+                                   Minimum="0"
+                                   Maximum="1"
+                                   Value="{Binding DownloadProgress}" />
+                      <TextBlock Grid.Column="1"
+                                 VerticalAlignment="Center"
+                                 Text="{Binding DownloadPercentLabel}" />
+                    </Grid>
+
+                    <WrapPanel ItemWidth="120"
+                               Orientation="Horizontal">
+                      <Button Margin="0,0,8,0"
+                              Content="Download"
+                              IsEnabled="{Binding CanDownload}"
+                              Command="{Binding DownloadCommand}" />
+                      <Button Margin="0,0,8,0"
+                              Content="Cancel"
+                              IsEnabled="{Binding CanCancel}"
+                              Command="{Binding CancelCommand}" />
+                      <Button Margin="0,0,8,0"
+                              Content="Select"
+                              IsEnabled="{Binding CanSelect}"
+                              Command="{Binding SelectCommand}" />
+                      <Button Content="Delete"
+                              IsEnabled="{Binding CanDelete}"
+                              Command="{Binding DeleteCommand}" />
+                    </WrapPanel>
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </DockPanel>
+    </TabItem>
+  </TabControl>
 </Window>
