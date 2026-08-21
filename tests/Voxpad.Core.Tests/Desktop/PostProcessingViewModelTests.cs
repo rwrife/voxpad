@@ -2,12 +2,212 @@ using Voxpad.Core.Ai;
 using Voxpad.Core.Models;
 using Voxpad.Core.Transcription;
 using Voxpad.Core.Translation;
+using Voxpad.Core.Voice;
 using Voxpad.Desktop.ViewModels;
 
 namespace Voxpad.Core.Tests.Desktop;
 
 public sealed class PostProcessingViewModelTests
 {
+    [Fact]
+    public async Task RunPipelineAsync_OnlyRunsEnabledStages()
+    {
+        var cleanup = new FakeTranscriptAiService(TranscriptAiResult.FromOutput("Cleaned text"));
+        var translation = new FakeTranslationService();
+        var voice = new FakeVoiceGenerationService();
+        var viewModel = new PostProcessingViewModel(cleanup, translation, voice)
+        {
+            SourceText = "Original text",
+            CleanupEnabled = true,
+            TranslationEnabled = false,
+            VoiceEnabled = false
+        };
+
+        await viewModel.RunPipelineAsync();
+
+        Assert.Equal(1, cleanup.Calls);
+        Assert.Equal(0, translation.Calls);
+        Assert.Equal(0, voice.Calls);
+        Assert.Equal("Completed", viewModel.PipelineStatus);
+        Assert.Equal("Completed", viewModel.CleanupStatus);
+        Assert.Equal("Skipped", viewModel.TranslationStatus);
+        Assert.Equal("Skipped", viewModel.VoiceStatus);
+        Assert.Equal("Original text", viewModel.SourceText);
+        Assert.Equal("Cleaned text", Assert.Single(viewModel.Variants).OutputText);
+    }
+
+    [Fact]
+    public async Task RunPipelineAsync_WhenNoStageIsEnabled_ReportsActionableStatus()
+    {
+        var viewModel = new PostProcessingViewModel(
+            new FakeTranscriptAiService(TranscriptAiResult.FromOutput("unused")),
+            new FakeTranslationService(),
+            new FakeVoiceGenerationService())
+        {
+            SourceText = "Source",
+            CleanupEnabled = false,
+            TranslationEnabled = false,
+            VoiceEnabled = false
+        };
+
+        await viewModel.RunPipelineAsync();
+
+        Assert.Equal("No stages enabled", viewModel.PipelineStatus);
+        Assert.Contains("enable", viewModel.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.False(viewModel.IsBusy);
+    }
+
+    [Fact]
+    public async Task RunPipelineAsync_TranslationUsesCleanupVariantWithoutReplacingSource()
+    {
+        var translationResult = TranslationStageResult.FromVariants(
+            TranscriptDocument.FromSegments([new TranscriptSegment("Cleaned text", 0, 0)]),
+            [
+                new TranslatedTranscriptVariant(
+                    "es",
+                    "Spanish",
+                    TranscriptDocument.FromSegments([new TranscriptSegment("Texto limpio", 0, 0)]),
+                    "test-provider",
+                    "translation-model")
+            ],
+            []);
+        var translation = new FakeTranslationService(translationResult);
+        var viewModel = new PostProcessingViewModel(
+            new FakeTranscriptAiService(TranscriptAiResult.FromOutput("Cleaned text")),
+            translation,
+            new FakeVoiceGenerationService())
+        {
+            SourceText = "Um, original text",
+            CleanupEnabled = true,
+            TranslationEnabled = true,
+            VoiceEnabled = false,
+            TargetLanguages = "es"
+        };
+
+        await viewModel.RunPipelineAsync();
+
+        Assert.Equal("Cleaned text", Assert.Single(translation.SourceTranscript!.Segments).Text);
+        Assert.Equal("Um, original text", viewModel.SourceText);
+        Assert.Collection(
+            viewModel.Variants,
+            cleaned => Assert.Equal("Cleaned text", cleaned.OutputText),
+            translated => Assert.Equal("Texto limpio", translated.OutputText));
+        Assert.Equal("Completed", viewModel.TranslationStatus);
+    }
+
+    [Fact]
+    public async Task RunPipelineAsync_VoiceStagePublishesGeneratedAudioArtifact()
+    {
+        var source = TranscriptDocument.FromSegments([new TranscriptSegment("Narrate me", 0, 1_000)]);
+        var voiceResult = VoiceGenerationStageResult.FromArtifacts(
+            source,
+            [
+                new VoiceGenerationArtifact(
+                    "source",
+                    "Source language",
+                    "mp3",
+                    "audio/mpeg",
+                    ".mp3",
+                    "test-provider",
+                    "voice-model",
+                    "Narrator",
+                    "voice-1",
+                    [1, 2, 3, 4])
+            ]);
+        var voice = new FakeVoiceGenerationService(voiceResult);
+        var viewModel = new PostProcessingViewModel(
+            new FakeTranscriptAiService(TranscriptAiResult.FromOutput("unused")),
+            new FakeTranslationService(),
+            voice)
+        {
+            SourceText = "Narrate me",
+            CleanupEnabled = false,
+            TranslationEnabled = false,
+            VoiceEnabled = true,
+            VoiceProfileName = "Narrator",
+            VoiceId = "voice-1"
+        };
+
+        await viewModel.RunPipelineAsync();
+
+        Assert.Equal("Narrate me", Assert.Single(voice.SourceTranscript!.Segments).Text);
+        Assert.Equal("Narrator", voice.RequestedProfile!.ProfileName);
+        var artifact = Assert.Single(viewModel.Artifacts);
+        Assert.Equal("Audio", artifact.Kind);
+        Assert.Equal("narration-source.mp3", artifact.FileName);
+        Assert.Equal(4, artifact.SizeBytes);
+        Assert.Equal("Completed", viewModel.VoiceStatus);
+        Assert.Equal("Completed", viewModel.PipelineStatus);
+    }
+
+    [Fact]
+    public async Task RunPipelineAsync_TranslationPublishesSubtitleArtifacts()
+    {
+        var source = TranscriptDocument.FromSegments([new TranscriptSegment("Hello", 0, 1_000)]);
+        var translated = TranscriptDocument.FromSegments([new TranscriptSegment("Hola", 0, 1_000)]);
+        var translation = new FakeTranslationService(
+            TranslationStageResult.FromVariants(
+                source,
+                [new TranslatedTranscriptVariant("es", "Spanish", translated, "test-provider", "translation-model")],
+                [new LocalizedSubtitleArtifact("es", "Spanish", "srt", ".srt", "1\n00:00:00,000 --> 00:00:01,000\nHola")]));
+        var viewModel = new PostProcessingViewModel(
+            new FakeTranscriptAiService(TranscriptAiResult.FromOutput("unused")),
+            translation,
+            new FakeVoiceGenerationService())
+        {
+            SourceText = "Hello",
+            CleanupEnabled = false,
+            TranslationEnabled = true,
+            VoiceEnabled = false,
+            TargetLanguages = "es"
+        };
+
+        await viewModel.RunPipelineAsync();
+
+        var artifact = Assert.Single(viewModel.Artifacts);
+        Assert.Equal("Subtitle", artifact.Kind);
+        Assert.Equal("transcript-es.srt", artifact.FileName);
+        Assert.Contains("Hola", artifact.TextContent, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ExportArtifactsAsync_WritesGeneratedFilesToSelectedDirectory()
+    {
+        var outputDirectory = Path.Combine(Path.GetTempPath(), $"voxpad-artifacts-{Guid.NewGuid():N}");
+        try
+        {
+            var source = TranscriptDocument.FromSegments([new TranscriptSegment("Hello", 0, 1_000)]);
+            var translated = TranscriptDocument.FromSegments([new TranscriptSegment("Hola", 0, 1_000)]);
+            var translation = new FakeTranslationService(
+                TranslationStageResult.FromVariants(
+                    source,
+                    [new TranslatedTranscriptVariant("es", "Spanish", translated, "test-provider", "translation-model")],
+                    [new LocalizedSubtitleArtifact("es", "Spanish", "srt", ".srt", "subtitle content")]));
+            var viewModel = new PostProcessingViewModel(
+                new FakeTranscriptAiService(TranscriptAiResult.FromOutput("unused")),
+                translation,
+                new FakeVoiceGenerationService())
+            {
+                SourceText = "Hello",
+                TranslationEnabled = true,
+                OutputDirectory = outputDirectory
+            };
+            await viewModel.RunPipelineAsync();
+
+            await viewModel.ExportArtifactsAsync();
+
+            Assert.Equal("subtitle content", await File.ReadAllTextAsync(Path.Combine(outputDirectory, "transcript-es.srt")));
+            Assert.Equal("Exported 1 artifact.", viewModel.ExportStatus);
+        }
+        finally
+        {
+            if (Directory.Exists(outputDirectory))
+            {
+                Directory.Delete(outputDirectory, recursive: true);
+            }
+        }
+    }
+
     [Fact]
     public async Task RunCleanupAsync_AddsNonDestructiveVariantWithProvenance()
     {
@@ -432,6 +632,34 @@ public sealed class PostProcessingViewModelTests
             }
 
             return Task.FromResult(result ?? TranslationStageResult.Failure(sourceTranscript, "No fake result configured."));
+        }
+    }
+
+    private sealed class FakeVoiceGenerationService(VoiceGenerationStageResult? result = null) : IVoiceGenerationService
+    {
+        public VoiceGenerationSettings Settings { get; } = new()
+        {
+            Enabled = true,
+            Model = "voice-model",
+            Provider = "test-provider"
+        };
+
+        public int Calls { get; private set; }
+
+        public TranscriptDocument? SourceTranscript { get; private set; }
+
+        public VoiceProfile? RequestedProfile { get; private set; }
+
+        public Task<VoiceGenerationStageResult> GenerateAsync(
+            TranscriptDocument transcriptVariant,
+            VoiceProfile voiceProfile,
+            string? languageCode = null,
+            CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            SourceTranscript = transcriptVariant;
+            RequestedProfile = voiceProfile;
+            return Task.FromResult(result ?? VoiceGenerationStageResult.Failure(transcriptVariant, "No fake result configured."));
         }
     }
 }
