@@ -3,6 +3,7 @@ using System.Windows.Input;
 using Voxpad.Core.Ai;
 using Voxpad.Core.Transcription;
 using Voxpad.Core.Translation;
+using Voxpad.Core.Voice;
 using Voxpad.Desktop.Infrastructure;
 
 namespace Voxpad.Desktop.ViewModels;
@@ -11,6 +12,7 @@ public sealed class PostProcessingViewModel : ViewModelBase
 {
     private readonly ITranscriptAiService transcriptAiService;
     private readonly ITranslationService translationService;
+    private readonly IVoiceGenerationService voiceGenerationService;
     private string sourceText = string.Empty;
     private string targetLanguages = "es";
     private string? originalSourceText;
@@ -20,16 +22,44 @@ public sealed class PostProcessingViewModel : ViewModelBase
     private string? errorMessage;
     private bool isBusy;
     private PostProcessingAction lastAction;
+    private bool cleanupEnabled = true;
+    private bool translationEnabled;
+    private bool voiceEnabled;
+    private string pipelineStatus = "Ready";
+    private string cleanupStatus = "Ready";
+    private string translationStatus = "Ready";
+    private string voiceStatus = "Ready";
+    private string voiceProfileName = "Default";
+    private string voiceId = "default";
+    private string outputDirectory = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+        "voxpad-exports");
+    private string exportStatus = "No artifacts exported.";
 
     public PostProcessingViewModel(
         ITranscriptAiService transcriptAiService,
         ITranslationService translationService)
+        : this(
+            transcriptAiService,
+            translationService,
+            new LocalOpenAiVoiceGenerationService(new HttpClient()))
+    {
+    }
+
+    public PostProcessingViewModel(
+        ITranscriptAiService transcriptAiService,
+        ITranslationService translationService,
+        IVoiceGenerationService voiceGenerationService)
     {
         this.transcriptAiService = transcriptAiService ?? throw new ArgumentNullException(nameof(transcriptAiService));
         this.translationService = translationService ?? throw new ArgumentNullException(nameof(translationService));
+        this.voiceGenerationService = voiceGenerationService ?? throw new ArgumentNullException(nameof(voiceGenerationService));
 
+        RunPipelineCommand = new AsyncCommand(() => RunPipelineAsync());
         CleanupCommand = new AsyncCommand(() => RunCleanupAsync());
         TranslationCommand = new AsyncCommand(() => RunTranslationAsync());
+        VoiceCommand = new AsyncCommand(() => RunVoiceAsync());
+        ExportArtifactsCommand = new AsyncCommand(() => ExportArtifactsAsync());
         RetryCommand = new AsyncCommand(() => RetryAsync());
         PromoteCommand = new RelayCommand(PromoteSelectedVariant);
         RevertCommand = new RelayCommand(RevertSource);
@@ -37,15 +67,89 @@ public sealed class PostProcessingViewModel : ViewModelBase
 
     public ObservableCollection<PostProcessingVariantViewModel> Variants { get; } = [];
 
+    public ObservableCollection<PipelineArtifactViewModel> Artifacts { get; } = [];
+
+    public ICommand RunPipelineCommand { get; }
+
     public ICommand CleanupCommand { get; }
 
     public ICommand TranslationCommand { get; }
+
+    public ICommand VoiceCommand { get; }
+
+    public ICommand ExportArtifactsCommand { get; }
 
     public ICommand RetryCommand { get; }
 
     public ICommand PromoteCommand { get; }
 
     public ICommand RevertCommand { get; }
+
+    public bool CleanupEnabled
+    {
+        get => cleanupEnabled;
+        set => SetProperty(ref cleanupEnabled, value);
+    }
+
+    public bool TranslationEnabled
+    {
+        get => translationEnabled;
+        set => SetProperty(ref translationEnabled, value);
+    }
+
+    public bool VoiceEnabled
+    {
+        get => voiceEnabled;
+        set => SetProperty(ref voiceEnabled, value);
+    }
+
+    public string PipelineStatus
+    {
+        get => pipelineStatus;
+        private set => SetProperty(ref pipelineStatus, value);
+    }
+
+    public string CleanupStatus
+    {
+        get => cleanupStatus;
+        private set => SetProperty(ref cleanupStatus, value);
+    }
+
+    public string TranslationStatus
+    {
+        get => translationStatus;
+        private set => SetProperty(ref translationStatus, value);
+    }
+
+    public string VoiceStatus
+    {
+        get => voiceStatus;
+        private set => SetProperty(ref voiceStatus, value);
+    }
+
+    public string VoiceProfileName
+    {
+        get => voiceProfileName;
+        set => SetProperty(ref voiceProfileName, value ?? string.Empty);
+    }
+
+    public string VoiceId
+    {
+        get => voiceId;
+        set => SetProperty(ref voiceId, value ?? string.Empty);
+    }
+
+    public string OutputDirectory
+    {
+        get => outputDirectory;
+        set => SetProperty(ref outputDirectory, value ?? string.Empty);
+    }
+
+    public string ExportStatus
+    {
+        get => exportStatus;
+        private set => SetProperty(ref exportStatus, value);
+    }
 
     public string SourceText
     {
@@ -118,9 +222,79 @@ public sealed class PostProcessingViewModel : ViewModelBase
         SourceText = GetTranscriptText(transcript);
         originalSourceText = SourceText;
         Variants.Clear();
+        Artifacts.Clear();
         SelectedVariant = null;
         ErrorMessage = null;
         lastAction = PostProcessingAction.None;
+    }
+
+    public async Task RunPipelineAsync(CancellationToken cancellationToken = default)
+    {
+        if (!TryBeginOperation())
+        {
+            return;
+        }
+
+        lastAction = PostProcessingAction.Pipeline;
+        Artifacts.Clear();
+        PipelineStatus = "Running";
+        CleanupStatus = CleanupEnabled ? "Pending" : "Skipped";
+        TranslationStatus = TranslationEnabled ? "Pending" : "Skipped";
+        VoiceStatus = VoiceEnabled ? "Pending" : "Skipped";
+
+        try
+        {
+            if (!CleanupEnabled && !TranslationEnabled && !VoiceEnabled)
+            {
+                PipelineStatus = "No stages enabled";
+                ErrorMessage = "Enable at least one optional stage before running the pipeline.";
+                return;
+            }
+
+            PostProcessingVariantViewModel? pipelineVariant = null;
+
+            if (CleanupEnabled)
+            {
+                CleanupStatus = "Running";
+                await RunCleanupCoreAsync(cancellationToken);
+                CleanupStatus = HasError ? "Failed" : "Completed";
+                if (CleanupStatus == "Completed")
+                {
+                    pipelineVariant = SelectedVariant;
+                }
+            }
+
+            if (TranslationEnabled)
+            {
+                var errorBeforeStage = ErrorMessage;
+                TranslationStatus = "Running";
+                await RunTranslationCoreAsync(cancellationToken, pipelineVariant);
+                TranslationStatus = string.Equals(errorBeforeStage, ErrorMessage, StringComparison.Ordinal)
+                    ? "Completed"
+                    : "Failed";
+                if (TranslationStatus == "Completed")
+                {
+                    pipelineVariant = SelectedVariant;
+                }
+            }
+
+            if (VoiceEnabled)
+            {
+                var errorBeforeStage = ErrorMessage;
+                VoiceStatus = "Running";
+                await RunVoiceCoreAsync(cancellationToken, pipelineVariant);
+                VoiceStatus = string.Equals(errorBeforeStage, ErrorMessage, StringComparison.Ordinal)
+                    ? "Completed"
+                    : "Failed";
+            }
+
+            lastAction = PostProcessingAction.Pipeline;
+            PipelineStatus = HasError ? "Completed with issues" : "Completed";
+        }
+        finally
+        {
+            EndOperation();
+        }
     }
 
     public async Task RunCleanupAsync(CancellationToken cancellationToken = default)
@@ -208,9 +382,13 @@ public sealed class PostProcessingViewModel : ViewModelBase
         }
     }
 
-    private async Task RunTranslationCoreAsync(CancellationToken cancellationToken)
+    private async Task RunTranslationCoreAsync(
+        CancellationToken cancellationToken,
+        PostProcessingVariantViewModel? sourceVariant = null)
     {
-        if (string.IsNullOrWhiteSpace(SourceText))
+        var sourceSnapshot = sourceVariant?.OutputText ?? SourceText;
+        var displayedSourceSnapshot = SourceText;
+        if (string.IsNullOrWhiteSpace(sourceSnapshot))
         {
             ErrorMessage = "Enter or select transcript text before running translation.";
             return;
@@ -227,13 +405,12 @@ public sealed class PostProcessingViewModel : ViewModelBase
             return;
         }
 
-        var sourceSnapshot = SourceText;
-        originalSourceText ??= sourceSnapshot;
+        originalSourceText ??= displayedSourceSnapshot;
         lastAction = PostProcessingAction.Translation;
-        var source = selectedTranscript is not null &&
+        var source = sourceVariant?.Transcript ?? (selectedTranscript is not null &&
                      string.Equals(GetTranscriptText(selectedTranscript), sourceSnapshot, StringComparison.Ordinal)
             ? selectedTranscript
-            : TranscriptDocument.FromSegments([new TranscriptSegment(sourceSnapshot, 0, 0)]);
+            : TranscriptDocument.FromSegments([new TranscriptSegment(sourceSnapshot, 0, 0)]));
         TranslationStageResult result;
         try
         {
@@ -249,7 +426,7 @@ public sealed class PostProcessingViewModel : ViewModelBase
             return;
         }
 
-        if (!string.Equals(SourceText, sourceSnapshot, StringComparison.Ordinal))
+        if (!string.Equals(SourceText, displayedSourceSnapshot, StringComparison.Ordinal))
         {
             ErrorMessage = "The source transcript changed while translation was running. Retry translation for the current text.";
             return;
@@ -271,9 +448,142 @@ public sealed class PostProcessingViewModel : ViewModelBase
             SelectedVariant = variant;
         }
 
+        foreach (var artifact in result.SubtitleArtifacts)
+        {
+            Artifacts.Add(PipelineArtifactViewModel.Subtitle(
+                artifact.LanguageCode,
+                artifact.Format,
+                artifact.FileExtension,
+                artifact.Content));
+        }
+
         if (result.Variants.Count == 0 || !string.IsNullOrWhiteSpace(result.ErrorMessage))
         {
             ErrorMessage = result.ErrorMessage ?? "Translation did not produce any text.";
+        }
+    }
+
+    public async Task RunVoiceAsync(CancellationToken cancellationToken = default)
+    {
+        if (!TryBeginOperation())
+        {
+            return;
+        }
+
+        VoiceStatus = "Running";
+        try
+        {
+            await RunVoiceCoreAsync(cancellationToken);
+            VoiceStatus = HasError ? "Failed" : "Completed";
+        }
+        finally
+        {
+            EndOperation();
+        }
+    }
+
+    private async Task RunVoiceCoreAsync(
+        CancellationToken cancellationToken,
+        PostProcessingVariantViewModel? sourceVariant = null)
+    {
+        var sourceSnapshot = sourceVariant?.OutputText ?? SourceText;
+        var displayedSourceSnapshot = SourceText;
+        if (string.IsNullOrWhiteSpace(sourceSnapshot))
+        {
+            ErrorMessage = "Enter or select transcript text before running voice generation.";
+            return;
+        }
+
+        var source = sourceVariant?.Transcript ?? (selectedTranscript is not null &&
+                     string.Equals(GetTranscriptText(selectedTranscript), sourceSnapshot, StringComparison.Ordinal)
+            ? selectedTranscript
+            : TranscriptDocument.FromSegments([new TranscriptSegment(sourceSnapshot, 0, 0)]));
+        var profile = new VoiceProfile(VoiceProfileName, VoiceId);
+        lastAction = PostProcessingAction.Voice;
+
+        VoiceGenerationStageResult result;
+        try
+        {
+            result = await voiceGenerationService.GenerateAsync(
+                source,
+                profile,
+                sourceVariant?.LanguageCode,
+                cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Voice generation failed: {ex.Message} Check the voice provider and retry.";
+            return;
+        }
+
+        if (!string.Equals(SourceText, displayedSourceSnapshot, StringComparison.Ordinal))
+        {
+            ErrorMessage = "The source transcript changed while voice generation was running. Retry for the current text.";
+            return;
+        }
+
+        foreach (var artifact in result.Artifacts)
+        {
+            Artifacts.Add(PipelineArtifactViewModel.Audio(
+                artifact.LanguageCode,
+                artifact.Format,
+                artifact.FileExtension,
+                artifact.AudioBytes));
+        }
+
+        if (result.Artifacts.Count == 0 || !string.IsNullOrWhiteSpace(result.ErrorMessage))
+        {
+            ErrorMessage = result.ErrorMessage ?? "Voice generation did not produce an audio artifact.";
+        }
+    }
+
+    public async Task ExportArtifactsAsync(CancellationToken cancellationToken = default)
+    {
+        if (Artifacts.Count == 0)
+        {
+            ExportStatus = "No artifacts are available to export.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(OutputDirectory))
+        {
+            ExportStatus = "Choose an output directory before exporting.";
+            return;
+        }
+
+        try
+        {
+            var directory = Path.GetFullPath(OutputDirectory);
+            Directory.CreateDirectory(directory);
+
+            foreach (var artifact in Artifacts)
+            {
+                var path = Path.Combine(directory, artifact.FileName);
+                if (artifact.BinaryContent is not null)
+                {
+                    await File.WriteAllBytesAsync(path, artifact.BinaryContent, cancellationToken);
+                }
+                else
+                {
+                    await File.WriteAllTextAsync(path, artifact.TextContent ?? string.Empty, cancellationToken);
+                }
+            }
+
+            ExportStatus = Artifacts.Count == 1
+                ? "Exported 1 artifact."
+                : $"Exported {Artifacts.Count} artifacts.";
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            ExportStatus = $"Artifact export failed: {ex.Message}";
         }
     }
 
@@ -286,6 +596,12 @@ public sealed class PostProcessingViewModel : ViewModelBase
                 break;
             case PostProcessingAction.Translation:
                 await RunTranslationAsync(cancellationToken);
+                break;
+            case PostProcessingAction.Voice:
+                await RunVoiceAsync(cancellationToken);
+                break;
+            case PostProcessingAction.Pipeline:
+                await RunPipelineAsync(cancellationToken);
                 break;
             default:
                 ErrorMessage = "Run cleanup or translation before retrying.";
@@ -360,6 +676,8 @@ public sealed class PostProcessingViewModel : ViewModelBase
     {
         None,
         Cleanup,
-        Translation
+        Translation,
+        Voice,
+        Pipeline
     }
 }

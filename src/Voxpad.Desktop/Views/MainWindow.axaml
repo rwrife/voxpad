@@ -12,44 +12,74 @@
   </Design.DataContext>
 
   <TabControl Margin="16">
-    <TabItem Header="Post-processing">
+    <TabItem Header="Pipeline Studio">
       <Grid Margin="0,12,0,0"
-            RowDefinitions="Auto,Auto,*,Auto">
+            RowDefinitions="Auto,Auto,Auto,*,Auto,Auto">
         <StackPanel Grid.Row="0" Spacing="6">
           <TextBlock FontSize="22"
                      FontWeight="SemiBold"
-                     Text="Cleanup and translation workspace" />
+                     Text="Pipeline Studio" />
           <TextBlock TextWrapping="Wrap"
-                     Text="Paste or select a transcript, run optional local-AI stages, and compare non-destructive variants before promoting one." />
+                     Text="Edit the source transcript, choose optional local stages, and keep every generated variant and artifact non-destructive." />
         </StackPanel>
 
-        <Grid Grid.Row="1"
-              Margin="0,14,0,12"
-              ColumnDefinitions="Auto,220,Auto,*">
-          <Button Grid.Column="0"
-                  Margin="0,0,8,0"
-                  Content="Run cleanup"
-                  IsEnabled="{Binding PostProcessing.IsNotBusy}"
-                  Command="{Binding PostProcessing.CleanupCommand}" />
+        <Border Grid.Row="1"
+                Margin="0,14,0,8"
+                Padding="10"
+                BorderBrush="#D1D5DB"
+                BorderThickness="1"
+                CornerRadius="8">
+          <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto">
+            <StackPanel Grid.Column="0" Margin="0,0,18,0" Spacing="4">
+              <CheckBox Content="Cleanup"
+                        IsChecked="{Binding PostProcessing.CleanupEnabled}" />
+              <TextBlock FontSize="11" Text="{Binding PostProcessing.CleanupStatus}" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Margin="0,0,18,0" Spacing="4">
+              <CheckBox Content="Translation"
+                        IsChecked="{Binding PostProcessing.TranslationEnabled}" />
+              <TextBlock FontSize="11" Text="{Binding PostProcessing.TranslationStatus}" />
+            </StackPanel>
+            <StackPanel Grid.Column="2" Margin="0,0,18,0" Spacing="4">
+              <CheckBox Content="Re-voice"
+                        IsChecked="{Binding PostProcessing.VoiceEnabled}" />
+              <TextBlock FontSize="11" Text="{Binding PostProcessing.VoiceStatus}" />
+            </StackPanel>
+            <TextBlock Grid.Column="3"
+                       VerticalAlignment="Center"
+                       FontWeight="SemiBold"
+                       Text="{Binding PostProcessing.PipelineStatus}" />
+            <Button Grid.Column="4"
+                    Content="Run enabled stages"
+                    IsEnabled="{Binding PostProcessing.IsNotBusy}"
+                    Command="{Binding PostProcessing.RunPipelineCommand}" />
+          </Grid>
+        </Border>
+
+        <Grid Grid.Row="2"
+              Margin="0,0,0,12"
+              ColumnDefinitions="180,180,180,Auto,*">
+          <TextBox Grid.Column="0"
+                   Margin="0,0,8,0"
+                   Watermark="Languages: es, fr"
+                   Text="{Binding PostProcessing.TargetLanguages}" />
           <TextBox Grid.Column="1"
                    Margin="0,0,8,0"
-                   Watermark="Target languages: es, fr"
-                   Text="{Binding PostProcessing.TargetLanguages}" />
-          <Button Grid.Column="2"
+                   Watermark="Voice profile"
+                   Text="{Binding PostProcessing.VoiceProfileName}" />
+          <TextBox Grid.Column="2"
+                   Margin="0,0,8,0"
+                   Watermark="Voice ID"
+                   Text="{Binding PostProcessing.VoiceId}" />
+          <Button Grid.Column="3"
                   Margin="0,0,8,0"
-                  Content="Run translation"
+                  Content="Retry last"
                   IsEnabled="{Binding PostProcessing.IsNotBusy}"
-                  Command="{Binding PostProcessing.TranslationCommand}" />
-          <StackPanel Grid.Column="3"
+                  Command="{Binding PostProcessing.RetryCommand}" />
+          <StackPanel Grid.Column="4"
                       HorizontalAlignment="Right"
                       Orientation="Horizontal"
                       Spacing="8">
-            <TextBlock VerticalAlignment="Center"
-                       IsVisible="{Binding PostProcessing.IsBusy}"
-                       Text="Stage running…" />
-            <Button Content="Retry last stage"
-                    IsEnabled="{Binding PostProcessing.IsNotBusy}"
-                    Command="{Binding PostProcessing.RetryCommand}" />
             <Button Content="Promote selected"
                     IsEnabled="{Binding PostProcessing.IsNotBusy}"
                     Command="{Binding PostProcessing.PromoteCommand}" />
@@ -59,7 +89,7 @@
           </StackPanel>
         </Grid>
 
-        <Grid Grid.Row="2"
+        <Grid Grid.Row="3"
               ColumnDefinitions="*,16,*">
           <Grid Grid.Column="0" RowDefinitions="Auto,*">
             <TextBlock Grid.Row="0"
@@ -112,7 +142,39 @@
           </Grid>
         </Grid>
 
-        <Border Grid.Row="3"
+        <Border Grid.Row="4"
+                Margin="0,12,0,0"
+                Padding="10"
+                BorderBrush="#D1D5DB"
+                BorderThickness="1"
+                CornerRadius="8">
+          <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto">
+            <StackPanel Grid.Row="0" Grid.Column="0" Spacing="4">
+              <TextBlock FontWeight="SemiBold" Text="Generated artifacts" />
+              <ItemsControl ItemsSource="{Binding PostProcessing.Artifacts}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <TextBlock Text="{Binding FileName}" />
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+            <StackPanel Grid.Row="0" Grid.Column="1" Width="300" Spacing="6">
+              <TextBox Watermark="Output directory"
+                       Text="{Binding PostProcessing.OutputDirectory}" />
+              <Button HorizontalAlignment="Right"
+                      Content="Export artifacts"
+                      Command="{Binding PostProcessing.ExportArtifactsCommand}" />
+            </StackPanel>
+            <TextBlock Grid.Row="1"
+                       Grid.ColumnSpan="2"
+                       Margin="0,6,0,0"
+                       FontSize="11"
+                       Text="{Binding PostProcessing.ExportStatus}" />
+          </Grid>
+        </Border>
+
+        <Border Grid.Row="5"
                 Margin="0,12,0,0"
                 Padding="10"
                 Background="#22B91C1C"

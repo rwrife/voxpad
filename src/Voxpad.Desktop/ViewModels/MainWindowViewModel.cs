@@ -1,6 +1,7 @@
 using Voxpad.Core.Ai;
 using Voxpad.Core.Models;
 using Voxpad.Core.Translation;
+using Voxpad.Core.Voice;
 
 namespace Voxpad.Desktop.ViewModels;
 
@@ -37,7 +38,10 @@ public sealed class MainWindowViewModel : ViewModelBase
         var translation = new LocalOpenAiTranslationService(
             httpClient,
             new TranslationSettings { Enabled = true });
+        var voice = new LocalOpenAiVoiceGenerationService(
+            httpClient,
+            new VoiceGenerationSettings { Enabled = true });
 
-        return new PostProcessingViewModel(cleanup, translation);
+        return new PostProcessingViewModel(cleanup, translation, voice);
     }
 }
