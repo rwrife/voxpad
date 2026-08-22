@@ -40,6 +40,26 @@ Each stage is independently toggleable so users can run simple transcription-onl
 - **AI augmentation:** optional adapters for cleanup, translation, and voice generation services
 - **Artifacts:** editable transcript document + subtitle/audio exports
 
+## Media playback and timestamp editing
+
+Pipeline Studio uses a UI-free `IMediaPlayback` contract with a LibVLC desktop backend. Timestamped transcript rows keep their original start/end times while text edits update the canonical source transcript; selecting a start timestamp seeks the loaded media.
+
+Native runtime notes:
+
+- `win-x64` publishes include the VideoLAN LibVLC runtime package.
+- `osx-x64` publishes include the available LibVLC macOS runtime package.
+- On macOS (including Apple Silicon), voxpad also discovers VLC installed at `/Applications/VLC.app`; install VLC 3.x there until universal native libraries are bundled by the packaging milestone.
+- If LibVLC cannot be loaded, voxpad shows an actionable playback warning while transcript-only editing and optional pipeline stages remain usable.
+
+Platform smoke verification:
+
+1. Publish the target: `dotnet publish src/Voxpad.Desktop/Voxpad.Desktop.csproj -c Release -r win-x64 --self-contained true` or replace the RID with `osx-x64`/`osx-arm64`.
+2. Launch the published app and choose **Open media…** in Pipeline Studio.
+3. Confirm **Play/Pause** and the current-position display update.
+4. Load a timestamped `TranscriptDocument` through `MainWindowViewModel.LoadTranscript`, edit a segment, and select its start timestamp; confirm playback seeks without changing the displayed start/end values.
+5. With an edited segment, choose a second media file; confirm the discard prompt appears and cancelling preserves the edit.
+6. Temporarily remove/rename the native LibVLC runtime (or launch without VLC on macOS) and confirm the warning appears without disabling transcript editing or post-processing.
+
 ## Pipeline options
 
 - **Transcription only** (fastest, minimal dependencies)

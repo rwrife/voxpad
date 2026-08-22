@@ -228,6 +228,22 @@ public sealed class PostProcessingViewModel : ViewModelBase
         lastAction = PostProcessingAction.None;
     }
 
+    public void UpdateSelectedTranscript(TranscriptDocument transcript)
+    {
+        ArgumentNullException.ThrowIfNull(transcript);
+        if (IsBusy)
+        {
+            ErrorMessage = "Wait for the running stage to finish before editing the transcript.";
+            return;
+        }
+
+        originalTranscript ??= transcript;
+        originalSourceText ??= SourceText;
+        selectedTranscript = transcript;
+        SourceText = GetTranscriptText(transcript);
+        ErrorMessage = null;
+    }
+
     public async Task RunPipelineAsync(CancellationToken cancellationToken = default)
     {
         if (!TryBeginOperation())
