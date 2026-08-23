@@ -1,5 +1,6 @@
 using Voxpad.Core.Ai;
 using Voxpad.Core.Models;
+using Voxpad.Core.Playback;
 using Voxpad.Core.Transcription;
 using Voxpad.Core.Translation;
 using Voxpad.Core.Voice;
@@ -506,11 +507,53 @@ public sealed class PostProcessingViewModelTests
     }
 
     [Fact]
+    public async Task UpdateSelectedTranscript_PreservesVariantsAndUsesEditedTimestampedSource()
+    {
+        var translation = new FakeTranslationService();
+        var viewModel = new PostProcessingViewModel(
+            new FakeTranscriptAiService(TranscriptAiResult.FromOutput("Cleaned")),
+            translation);
+        viewModel.LoadSelectedTranscript(
+            TranscriptDocument.FromSegments([new TranscriptSegment("Original", 100, 900)]));
+        await viewModel.RunCleanupAsync();
+        var edited = TranscriptDocument.FromSegments([new TranscriptSegment("Edited", 100, 900)]);
+
+        viewModel.UpdateSelectedTranscript(edited);
+        await viewModel.RunTranslationAsync();
+
+        Assert.Equal("Edited", viewModel.SourceText);
+        Assert.Equal("Cleaned", Assert.Single(viewModel.Variants).OutputText);
+        Assert.Same(edited, translation.SourceTranscript);
+    }
+
+    [Fact]
     public void MainWindowViewModel_ExposesPostProcessingWorkspace()
     {
-        var viewModel = new MainWindowViewModel(new EmptyModelStore());
+        var viewModel = new MainWindowViewModel(
+            new EmptyModelStore(),
+            new UnavailableMediaPlayback("Test playback unavailable."));
 
         Assert.NotNull(viewModel.PostProcessing);
+        Assert.NotNull(viewModel.Media);
+    }
+
+    [Fact]
+    public void MainWindowViewModel_LoadTranscriptSynchronizesEditorAndPipelineSource()
+    {
+        var viewModel = new MainWindowViewModel(
+            new EmptyModelStore(),
+            new UnavailableMediaPlayback("Test playback unavailable."));
+        var transcript = TranscriptDocument.FromSegments(
+        [
+            new TranscriptSegment("First", 100, 900),
+            new TranscriptSegment("Second", 1_200, 2_300)
+        ]);
+
+        viewModel.LoadTranscript(transcript);
+
+        Assert.Equal(2, viewModel.Media.Segments.Count);
+        Assert.Equal("First", viewModel.Media.Segments[0].Text);
+        Assert.Equal($"First{Environment.NewLine}Second", viewModel.PostProcessing.SourceText);
     }
 
     private sealed class EmptyModelStore : IModelStore

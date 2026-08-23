@@ -14,7 +14,7 @@
   <TabControl Margin="16">
     <TabItem Header="Pipeline Studio">
       <Grid Margin="0,12,0,0"
-            RowDefinitions="Auto,Auto,Auto,*,Auto,Auto">
+            RowDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto">
         <StackPanel Grid.Row="0" Spacing="6">
           <TextBlock FontSize="22"
                      FontWeight="SemiBold"
@@ -89,19 +89,101 @@
           </StackPanel>
         </Grid>
 
-        <Grid Grid.Row="3"
+        <Border Grid.Row="3"
+                Margin="0,0,0,12"
+                Padding="10"
+                BorderBrush="#D1D5DB"
+                BorderThickness="1"
+                CornerRadius="8">
+          <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" RowDefinitions="Auto,Auto">
+            <Button Grid.Row="0"
+                    Grid.Column="0"
+                    Margin="0,0,10,0"
+                    Content="Open media…"
+                    Click="OpenMedia_Click" />
+            <StackPanel Grid.Row="0" Grid.Column="1" Spacing="2">
+              <TextBlock FontWeight="SemiBold" Text="{Binding Media.MediaName}" />
+              <TextBlock FontSize="11" Text="{Binding Media.PlaybackAvailability}" />
+            </StackPanel>
+            <Button Grid.Row="0"
+                    Grid.Column="2"
+                    Margin="10,0,10,0"
+                    Content="{Binding Media.PlayPauseLabel}"
+                    IsEnabled="{Binding Media.IsPlaybackAvailable}"
+                    Command="{Binding Media.TogglePlaybackCommand}" />
+            <TextBlock Grid.Row="0"
+                       Grid.Column="3"
+                       Margin="0,0,14,0"
+                       VerticalAlignment="Center"
+                       Text="{Binding Media.PlaybackStateLabel}" />
+            <TextBlock Grid.Row="0"
+                       Grid.Column="4"
+                       VerticalAlignment="Center"
+                       FontFamily="Consolas,Menlo,monospace"
+                       Text="{Binding Media.PositionLabel}" />
+            <TextBlock Grid.Row="1"
+                       Grid.ColumnSpan="5"
+                       Margin="0,8,0,0"
+                       Foreground="#B91C1C"
+                       IsVisible="{Binding Media.HasError}"
+                       TextWrapping="Wrap"
+                       Text="{Binding Media.ErrorMessage}" />
+          </Grid>
+        </Border>
+
+        <Grid Grid.Row="4"
               ColumnDefinitions="*,16,*">
           <Grid Grid.Column="0" RowDefinitions="Auto,*">
-            <TextBlock Grid.Row="0"
-                       Margin="0,0,0,6"
-                       FontWeight="SemiBold"
-                       Text="Source transcript" />
-            <TextBox Grid.Row="1"
-                     AcceptsReturn="True"
-                     TextWrapping="Wrap"
-                     ScrollViewer.VerticalScrollBarVisibility="Auto"
-                     Watermark="Paste transcript text here…"
-                     Text="{Binding PostProcessing.SourceText}" />
+            <Grid Grid.Row="0" Margin="0,0,0,6" ColumnDefinitions="*,Auto">
+              <TextBlock Grid.Column="0"
+                         FontWeight="SemiBold"
+                         Text="Source transcript" />
+              <TextBlock Grid.Column="1"
+                         FontSize="11"
+                         IsVisible="{Binding Media.HasUnsavedChanges}"
+                         Text="Unsaved segment edits" />
+            </Grid>
+            <TabControl Grid.Row="1">
+              <TabItem Header="Timestamped segments">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                  <ItemsControl ItemsSource="{Binding Media.Segments}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate>
+                        <Border Margin="0,0,0,8"
+                                Padding="8"
+                                BorderBrush="#D1D5DB"
+                                BorderThickness="1"
+                                CornerRadius="6">
+                          <Grid ColumnDefinitions="105,105,*">
+                            <Button Grid.Column="0"
+                                    Margin="0,0,8,0"
+                                    HorizontalContentAlignment="Left"
+                                    Content="{Binding StartLabel}"
+                                    Click="SeekSegment_Click" />
+                            <TextBlock Grid.Column="1"
+                                       Margin="0,0,8,0"
+                                       VerticalAlignment="Center"
+                                       FontFamily="Consolas,Menlo,monospace"
+                                       Text="{Binding EndLabel}" />
+                            <TextBox Grid.Column="2"
+                                     AcceptsReturn="True"
+                                     TextWrapping="Wrap"
+                                     Text="{Binding Text}" />
+                          </Grid>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </ScrollViewer>
+              </TabItem>
+              <TabItem Header="Plain text fallback">
+                <TextBox AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                         Watermark="Paste transcript text here…"
+                         Text="{Binding PostProcessing.SourceText}" />
+              </TabItem>
+            </TabControl>
           </Grid>
 
           <Grid Grid.Column="2" RowDefinitions="Auto,Auto,*">
@@ -142,7 +224,7 @@
           </Grid>
         </Grid>
 
-        <Border Grid.Row="4"
+        <Border Grid.Row="5"
                 Margin="0,12,0,0"
                 Padding="10"
                 BorderBrush="#D1D5DB"
@@ -174,7 +256,7 @@
           </Grid>
         </Border>
 
-        <Border Grid.Row="5"
+        <Border Grid.Row="6"
                 Margin="0,12,0,0"
                 Padding="10"
                 Background="#22B91C1C"
