@@ -60,6 +60,32 @@ Platform smoke verification:
 5. With an edited segment, choose a second media file; confirm the discard prompt appears and cancelling preserves the edit.
 6. Temporarily remove/rename the native LibVLC runtime (or launch without VLC on macOS) and confirm the warning appears without disabling transcript editing or post-processing.
 
+## Install a released build
+
+Tagged releases publish self-contained desktop packages on the [GitHub Releases](https://github.com/rwrife/voxpad/releases) page. The packages include the .NET runtime, the managed whisper runtime, and the desktop app; use **Model Manager** after launch to download and verify a local whisper model. Baseline transcription does not require a cloud account.
+
+### Windows 10/11
+
+1. Download `voxpad-win-x64.zip` from the release.
+2. Extract the entire archive to a writable folder.
+3. Run `Voxpad.Desktop.exe`.
+
+Keep the extracted files together because native speech and playback libraries are loaded from the application directory.
+
+### macOS
+
+1. Download the DMG matching the Mac: `voxpad-osx-arm64.dmg` for Apple Silicon or `voxpad-osx-x64.dmg` for Intel. Matching `.app.zip` archives are also attached for users who cannot mount a DMG.
+2. Open the DMG and copy `Voxpad.app` to **Applications**. For the ZIP alternative, extract it first and copy the enclosed app.
+3. Until signing and notarization are added, Control-click `Voxpad.app`, choose **Open**, and confirm the launch. If macOS still blocks the app, allow it from **System Settings → Privacy & Security**. Advanced users can remove quarantine with `xattr -dr com.apple.quarantine /Applications/Voxpad.app` after verifying the downloaded release.
+
+The Apple Silicon package discovers VLC 3.x at `/Applications/VLC.app` for media playback. Transcript editing, local transcription, and configured pipeline stages continue to work when playback is unavailable.
+
+## Release and CI policy
+
+Pull requests run the Release test suite before any package job. Pushes to `main` build downloadable Windows x64 and macOS arm64/x64 packages. Semantic-version tags matching `v*` publish the Windows ZIP plus macOS app ZIPs and DMGs as GitHub release assets. Packaging validates the expected executable, macOS bundle metadata, and non-empty archives before upload.
+
+Cleanup, translation, and re-voice remain optional. A disabled or unreachable stage reports its own actionable status without replacing the source transcript or preventing transcription-only workflows.
+
 ## Pipeline options
 
 - **Transcription only** (fastest, minimal dependencies)
