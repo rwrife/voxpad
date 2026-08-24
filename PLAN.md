@@ -51,15 +51,18 @@ Pipelines must remain modular so users can run transcription-only flows or full 
 
 ## Milestones
 
-1. **M1 — Core transcription engine** (`whisper.cpp` binding + decode/resample).
-2. **M2 — Capture/import + playback foundations**.
-3. **M3 — Transcript editor UI** (timestamp seek/edit/progress).
-4. **M4 — Model/provider manager** (STT + stage settings).
-5. **M5 — Export framework** (TXT/MD/SRT/VTT and artifact bookkeeping).
-6. **M6 — Optional cleanup stage** (AI transcript refinement).
-7. **M7 — Optional translation stage** (multilingual transcript/subtitles).
-8. **M8 — Optional re-voice stage** (narration generation/dubbing).
-9. **M9 — Packaging & CI** (Windows + macOS release artifacts).
+- [x] **M1 — Core transcription engine** (`whisper.cpp` binding + decode/resample).
+- [x] **M2 — Capture/import + playback foundations**.
+- [x] **M3 — Transcript editor UI** (timestamp seek/edit/progress).
+- [x] **M4 — Model/provider manager** (STT + stage settings).
+- [x] **M5 — Export framework** (TXT/MD/SRT/VTT and artifact bookkeeping).
+- [x] **M6 — Optional cleanup stage** (AI transcript refinement).
+- [x] **M7 — Optional translation stage** (multilingual transcript/subtitles).
+- [x] **M8 — Optional re-voice stage** (narration generation/dubbing).
+- [x] **M9 — Packaging & CI** (Windows + macOS release artifacts).
+
+The initial milestone set is complete. Future work should preserve the modular,
+local-first baseline and be tracked as focused follow-up issues.
 
 ## Non-goals (v1)
 
