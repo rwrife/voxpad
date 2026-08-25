@@ -111,16 +111,16 @@ Cleanup, translation, and re-voice remain optional. A disabled or unreachable st
 
 ## Milestones (updated)
 
-- [ ] M1 — Core transcription engine (`whisper.cpp` binding + audio decode/resample)
-- [ ] M2 — Audio capture/import + playback foundations
-- [ ] M3 — Transcript editor UI with timestamp seek and editing
-- [ ] M4 — Model/provider manager (ASR + AI pipeline providers)
-- [ ] M5 — Export layer (TXT/MD/SRT/VTT + job artifacts)
-- [ ] M6 — AI cleanup/summarize/title stage (optional)
-- [ ] M7 — Translation stage for multilingual transcripts/subtitles (optional)
-- [ ] M8 — Voice regeneration stage for polished narration/dubbing (optional)
-- [ ] M9 — Packaging & CI for Windows/macOS release artifacts
+- [x] M1 — Core transcription engine (`whisper.cpp` binding + audio decode/resample)
+- [x] M2 — Audio capture/import + playback foundations
+- [x] M3 — Transcript editor UI with timestamp seek and editing
+- [x] M4 — Model/provider manager (ASR + AI pipeline providers)
+- [x] M5 — Export layer (TXT/MD/SRT/VTT + job artifacts)
+- [x] M6 — AI cleanup/summarize/title stage (optional)
+- [x] M7 — Translation stage for multilingual transcripts/subtitles (optional)
+- [x] M8 — Voice regeneration stage for polished narration/dubbing (optional)
+- [x] M9 — Packaging & CI for Windows/macOS release artifacts
 
 ## Status
 
-🚧 Active build-out. See [PLAN.md](./PLAN.md) and the GitHub issue backlog for implementation sequencing.
+✅ The initial M1–M9 modular pipeline foundation is complete. See [PLAN.md](./PLAN.md) for the shipped architecture and use the GitHub issue backlog for subsequent improvements.
